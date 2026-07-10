@@ -171,13 +171,13 @@
                         <td>
                             <small>
                             {% if calendar.last_successful_sync_at %}
-                                {{ calendar.last_successful_sync_at|date:"M d, Y H:i" }}
+                                <span class="local-time" data-utc="{{ calendar.last_successful_sync_at|date:"c" }}">{{ calendar.last_successful_sync_at|date:"M d, Y H:i" }}</span>
                             {% else %}
                                 Never
                             {% endif %}
                             </small>
                         </td>
-                        <td><small>{{ calendar.created_at|date:"M d, Y H:i" }}</small></td>
+                        <td><small><span class="local-time" data-utc="{{ calendar.created_at|date:"c" }}">{{ calendar.created_at|date:"M d, Y H:i" }}</span></small></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -248,4 +248,15 @@
     }
 </script>
 
+<script>
+document.querySelectorAll('.local-time').forEach(el => {
+    const utc = el.getAttribute('data-utc');
+    if (utc) {
+        el.textContent = new Date(utc).toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+});
+</script>
 {% endblock %} 

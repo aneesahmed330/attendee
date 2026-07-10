@@ -2,14 +2,37 @@
 
 {% block content %}
 <style>
-    .meeting-url {
-        max-width: 300px;
+    .meeting-url-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        color: #495057;
+        text-decoration: none;
+        transition: background-color 0.15s ease-in-out;
+    }
+    .meeting-url-link:hover {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+    .bot-name {
+        max-width: 260px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         display: block;
     }
-    .bot-name {
+    .bot-id {
+        max-width: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        font-family: monospace;
+    }
+    .organizer-cell {
         max-width: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -224,7 +247,8 @@
                         <th>ID</th>
                         {% if session_type == SessionTypes.BOT %}
                             <th>Name</th>
-                            <th>Meeting URL</th>
+                            <th>Organizer</th>
+                            <th class="text-center">Link</th>
                         {% endif %}
                         <th>Status</th>
                         <th>Last Event</th>
@@ -245,10 +269,23 @@
                         hx-target="#content"
                         hx-swap="outerHTML"
                         hx-push-url="true">
-                        <td><small>{{ bot.object_id }}</small></td>
+                        <td><small class="bot-id" title="{{ bot.object_id }}">{{ bot.object_id }}</small></td>
                         {% if session_type == SessionTypes.BOT %}
-                            <td><small class="bot-name">{{ bot.name }}</small></td>
-                            <td><span class="meeting-url" title="{{ bot.meeting_url }}">{{ bot.meeting_url }}</span></td>
+                            <td><small class="bot-name" title="{{ bot.name }}">{{ bot.name }}</small></td>
+                            <td>
+                                <small class="organizer-cell" title="{{ bot.metadata.organizer_email }}">
+                                {% if bot.metadata.organizer_email %}
+                                    {{ bot.metadata.organizer_email }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                                </small>
+                            </td>
+                            <td class="text-center" onclick="event.stopPropagation()">
+                                <a href="{{ bot.meeting_url }}" target="_blank" class="meeting-url-link" title="{{ bot.meeting_url }}">
+                                    <i class="bi bi-camera-video"></i>
+                                </a>
+                            </td>
                         {% endif %}
                         <td>
                             <span class="badge {% if bot.state == BotStates.READY %}bg-warning{% elif bot.state == BotStates.FATAL_ERROR %}bg-danger{% elif bot.state == BotStates.ENDED %}bg-secondary{% else %}bg-success{% endif %}">
@@ -273,14 +310,14 @@
                         <td>
                             <small>
                             {% if bot.join_at %}
-                                {{ bot.join_at|date:"M d, Y H:i" }}
+                                <span class="local-time" data-utc="{{ bot.join_at|date:"c" }}">{{ bot.join_at|date:"M d, Y H:i" }} UTC</span>
                             {% else %}
                                 -
                             {% endif %}
                             </small>
                         </td>
                         {% endif %}
-                        <td><small>{{ bot.created_at|date:"M d, Y H:i" }}</small></td>
+                        <td><small><span class="local-time" data-utc="{{ bot.created_at|date:"c" }}">{{ bot.created_at|date:"M d, Y H:i" }} UTC</span></small></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -381,7 +418,19 @@
 
         {% endif %}
     });
-    
+
 </script>
 
-{% endblock %} 
+<script>
+document.querySelectorAll('.local-time').forEach(el => {
+    const utc = el.getAttribute('data-utc');
+    if (utc) {
+        el.textContent = new Date(utc).toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+});
+</script>
+
+{% endblock %}

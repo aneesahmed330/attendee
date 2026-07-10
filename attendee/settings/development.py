@@ -6,6 +6,13 @@ DEBUG = True
 SITE_DOMAIN = "localhost:8000"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
 
+# Set DJANGO_SSL_REQUIRE=true when running behind an HTTPS-terminating reverse
+# proxy (nginx + Let's Encrypt) — otherwise Django thinks every request is
+# plain HTTP and login/CSRF checks fail. Defaults to false so local dev
+# (plain HTTP, no proxy) is unaffected.
+if os.getenv("DJANGO_SSL_REQUIRE", "false") == "true":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",

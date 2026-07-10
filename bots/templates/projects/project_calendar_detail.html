@@ -147,6 +147,7 @@
                             <tr>
                                 <th>Event Name</th>
                                 <th>Start Time</th>
+                                <th>Status</th>
                                 <th>Meeting URL</th>
                             </tr>
                         </thead>
@@ -166,6 +167,13 @@
                                         {% endif %}
                                     </td>
                                     <td>{{ event.start_time|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        {% if event.is_deleted %}
+                                            <span class="badge bg-danger">Deleted</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if event.meeting_url %}
                                             <a href="{{ event.meeting_url }}" target="_blank" class="text-decoration-none">
