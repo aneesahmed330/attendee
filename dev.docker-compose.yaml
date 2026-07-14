@@ -1,10 +1,12 @@
-# Log rotation: without this, json-file logs grow unbounded and are the only
-# copy of a crash traceback (they die with the container). 3×20MB per service.
+# journald (not json-file): json-file logs live in the container's own
+# directory and are deleted the moment the container is recreated — which is
+# exactly what erased the 10/13-July crash tracebacks. journald stores logs
+# independently in the systemd journal, so they survive `docker compose up`
+# recreating a container. View with: journalctl CONTAINER_NAME=<service>-1
 x-default-logging: &default-logging
-  driver: json-file
+  driver: journald
   options:
-    max-size: "20m"
-    max-file: "3"
+    tag: "{{.Name}}"
 
 services:
   # Dedicated BOTS worker — each run_bot task holds a slot (Chrome inside)
