@@ -12,6 +12,10 @@ services:
       - ENABLE_CHROME_SANDBOX=false
     command: "celery -A attendee worker -l INFO"
     restart: unless-stopped
+    # Memory caps: a leaking/hungry container gets OOM-killed and restarted
+    # alone instead of freezing the whole box (see docs/issuses_solution.md).
+    # Worker is highest — bots (Chrome) run inside it in the default launch mode.
+    mem_limit: 2g
 
   attendee-scheduler-local:
     build: ./
@@ -26,6 +30,7 @@ services:
     command: "python manage.py run_scheduler"
     entrypoint: []
     restart: unless-stopped
+    mem_limit: 512m
 
   attendee-app-local:
     build: ./
@@ -42,6 +47,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     entrypoint: []
     restart: unless-stopped
+    mem_limit: 768m
 
   attendee-webpage-streamer-local:
     build: ./
@@ -73,6 +79,7 @@ services:
     networks:
       - attendee_network
     restart: unless-stopped
+    mem_limit: 512m
 
 
   redis:
@@ -82,6 +89,7 @@ services:
     restart: unless-stopped
     volumes:
       - redis:/data/redis
+    mem_limit: 256m
 
 networks:
   attendee_network:

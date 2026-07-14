@@ -2,7 +2,11 @@ import os
 
 from .base import *
 
-DEBUG = True
+# DEBUG=True leaks memory in long-running Celery/scheduler processes (Django
+# stores every SQL query in connection.queries, which only web requests clear).
+# Local dev keeps the default; the production server sets DJANGO_DEBUG=false.
+# With DEBUG=false, run `manage.py collectstatic` once (whitenoise serves it).
+DEBUG = os.getenv("DJANGO_DEBUG", "true") == "true"
 SITE_DOMAIN = "localhost:8000"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
 
