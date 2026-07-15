@@ -41,6 +41,30 @@ def launch_bot(bot):
                 )
             except Exception as e:
                 logger.error(f"Failed to create fatal error bot not launched event for bot {bot.object_id} ({bot.id}): {str(e)}")
+    elif os.getenv("LAUNCH_BOT_METHOD") == "ecs-fargate":
+        from .bot_ecs_task_creator import BotEcsTaskCreator
+
+        bot_ecs_task_creator = BotEcsTaskCreator()
+        create_task_result = bot_ecs_task_creator.create_bot_task(
+            bot_id=bot.id,
+            bot_name=bot.ephemeral_container_name(),
+        )
+        logger.info(f"Bot {bot.object_id} ({bot.id}) launched via ECS Fargate: {create_task_result}")
+        if not create_task_result.get("created"):
+            logger.error(f"Bot {bot.object_id} ({bot.id}) failed to launch via ECS Fargate.")
+            try:
+                event_metadata = None
+                if settings.STORE_INFRASTRUCTURE_INFORMATION_IN_BOT_EVENT_METADATA:
+                    event_metadata = {"create_task_result": json.dumps(create_task_result)}
+
+                BotEventManager.create_event(
+                    bot=bot,
+                    event_type=BotEventTypes.FATAL_ERROR,
+                    event_sub_type=BotEventSubTypes.FATAL_ERROR_BOT_NOT_LAUNCHED,
+                    event_metadata=event_metadata,
+                )
+            except Exception as e:
+                logger.error(f"Failed to create fatal error bot not launched event for bot {bot.object_id} ({bot.id}): {str(e)}")
     elif os.getenv("LAUNCH_BOT_METHOD") == "docker-compose-multi-host":
         # Launch bot via dedicated Celery app (bot_launcher) which uses ephemeral Docker containers
         from .tasks.run_bot_in_ephemeral_container_task import run_bot_in_ephemeral_container
