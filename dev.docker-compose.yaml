@@ -124,6 +124,11 @@ services:
        - postgres:/data/postgres
     networks:
       - attendee_network
+    # Bound to the instance's private IP (not 0.0.0.0) so Fargate bot tasks
+    # in the same VPC can reach it — security group sg-02b340717b24ac378
+    # only allows this port from the Fargate tasks' SG, nothing public.
+    ports:
+      - "172.31.44.122:5432:5432"
     restart: unless-stopped
     logging: *default-logging
     mem_limit: 512m
@@ -138,6 +143,10 @@ services:
     image: redis:7-alpine
     networks:
       - attendee_network
+    # Same reasoning as postgres above — bound to the private IP, locked
+    # down to the Fargate tasks' SG only.
+    ports:
+      - "172.31.44.122:6379:6379"
     restart: unless-stopped
     logging: *default-logging
     volumes:
