@@ -581,6 +581,34 @@ class ApiKey(models.Model):
         return f"{self.name} ({self.project.name})"
 
 
+class AutoJoinUser(models.Model):
+    """An org member whose Teams meetings the calendar poller should schedule bots for."""
+
+    OBJECT_ID_PREFIX = "aju_"
+    object_id = models.CharField(max_length=32, unique=True, editable=False)
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="auto_join_users")
+    email = models.EmailField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.object_id:
+            random_string = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+            self.object_id = f"{self.OBJECT_ID_PREFIX}{random_string}"
+        self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["project", "email"], name="unique_project_auto_join_user_email"),
+        ]
+
+    def __str__(self):
+        return self.email
+
+
 class MeetingTypes(models.TextChoices):
     ZOOM = "zoom"
     GOOGLE_MEET = "google_meet"
@@ -897,6 +925,21 @@ class Bot(models.Model):
             webhook_delivery_attempts_with_sensitive_data.delete()
 
             BotEventManager.create_event(bot=self, event_type=BotEventTypes.DATA_DELETED)
+
+    def delete_completely(self):
+        """Permanently removes this bot and all its data (unlike delete_data(),
+        which scrubs PII but keeps the bot row for audit purposes).
+
+        AudioChunk/Utterance PROTECT their Participant FK, so they must be
+        cleared before Bot.delete() can cascade through Recording -> Participant.
+        """
+        with transaction.atomic():
+            for recording in self.recordings.all():
+                recording.audio_chunks.all().delete()
+                recording.utterances.all().delete()
+                if recording.file and recording.file.name:
+                    recording.file.delete()
+            self.delete()
 
     def set_heartbeat(self):
         retry_count = 0

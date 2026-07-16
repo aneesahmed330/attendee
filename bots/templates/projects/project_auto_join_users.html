@@ -1,0 +1,112 @@
+{% extends 'projects/sidebar.html' %}
+
+{% block content %}
+    <!-- Create Modal -->
+    <div class="modal" id="createAutoJoinUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form hx-post="{% url 'projects:create-auto-join-user' project.object_id %}"
+                            hx-select="#autoJoinUsersTable"
+                            hx-target="#autoJoinUsersTable"
+                            hx-swap="outerHTML"
+                            hx-on::after-request="this.reset()">
+                            {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="autoJoinUserEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="autoJoinUserEmail" name="email" required>
+                            <div class="form-text">The bot will automatically join this person's Teams meetings.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" data-bs-dismiss="modal">Add User</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<div class="container mt-4">
+    <div class="table-responsive" id="autoJoinUsersTable">
+        {% if error %}
+            <div class="alert alert-danger" role="alert">{{ error }}</div>
+        {% endif %}
+
+        {% if auto_join_users %}
+            <h2>Users</h2>
+            <p class="text-muted">Bots are automatically scheduled for these users' Teams meetings.</p>
+            <button class="btn btn-primary mb-3 mt-3"
+                    data-bs-toggle="modal"
+                    data-bs-target="#createAutoJoinUserModal">
+                Add User
+            </button>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Added</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for auto_join_user in auto_join_users %}
+                    <tr>
+                        <td>{{ auto_join_user.email }}</td>
+                        <td>{{ auto_join_user.created_at|date:"M d, Y H:i" }}</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteModal{{ auto_join_user.object_id }}">
+                                Delete
+                            </button>
+
+                            <!-- Delete Confirmation Modal -->
+                            <div class="modal" id="deleteModal{{ auto_join_user.object_id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Confirm Deletion</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p>Are you sure you want to remove "{{ auto_join_user.email }}"?</p>
+                                            <p class="text-danger">This will also permanently delete <strong>all</strong> of this user's bots — scheduled and past — along with their transcripts and recordings. This cannot be undone.</p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button class="btn btn-danger"
+                                                    hx-delete="{% url 'projects:delete-auto-join-user' project.object_id auto_join_user.object_id %}"
+                                                    hx-swap="outerHTML"
+                                                    hx-select="#autoJoinUsersTable"
+                                                    hx-target="#autoJoinUsersTable"
+                                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                                    data-bs-dismiss="modal"
+                                                    >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <h2>Users</h2>
+            <p class="text-center mt-4">No users added yet</p>
+            <p class="text-center">
+                <button class="btn btn-primary mb-3"
+                    data-bs-toggle="modal"
+                    data-bs-target="#createAutoJoinUserModal">
+                    Add User
+                </button>
+            </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

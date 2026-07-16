@@ -24,6 +24,7 @@ from .meeting_url_utils import meeting_type_from_url
 from .models import (
     AsyncTranscription,
     AsyncTranscriptionStates,
+    AutoJoinUser,
     Bot,
     BotEventManager,
     BotEventSubTypes,
@@ -1700,3 +1701,19 @@ class ParticipantsView(GenericAPIView):
 
         except Bot.DoesNotExist:
             return Response({"error": "Bot not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AutoJoinUsersListView(APIView):
+    authentication_classes = [ApiKeyAuthentication]
+
+    @extend_schema(
+        operation_id="List Auto-Join Users",
+        summary="List auto-join users",
+        description="Returns the emails of users whose Teams meetings should be auto-joined by the calendar poller.",
+        responses={200: OpenApiResponse(description="List of emails")},
+        parameters=TokenHeaderParameter,
+        tags=["Bots"],
+    )
+    def get(self, request):
+        emails = list(AutoJoinUser.objects.filter(project=request.auth.project).order_by("email").values_list("email", flat=True))
+        return Response({"emails": emails})

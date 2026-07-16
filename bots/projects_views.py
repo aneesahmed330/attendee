@@ -9,6 +9,7 @@ from allauth.account.utils import send_email_confirmation
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.validators import validate_email
 from django.db import models, transaction
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
@@ -24,6 +25,7 @@ from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscr
 from .launch_bot_utils import launch_adhoc_bot_from_view
 from .models import (
     ApiKey,
+    AutoJoinUser,
     Bot,
     BotEvent,
     BotEventSubTypes,
@@ -856,6 +858,62 @@ class ProjectCalendarEventDetailView(LoginRequiredMixin, ProjectUrlContextMixin,
         )
 
         return render(request, "projects/project_calendar_event_detail.html", context)
+
+
+def get_auto_join_user_for_user(user, auto_join_user_object_id):
+    auto_join_user = get_object_or_404(AutoJoinUser, object_id=auto_join_user_object_id, project__organization=user.organization)
+    if user.role != UserRole.ADMIN and not ProjectAccess.objects.filter(project=auto_join_user.project, user=user).exists():
+        raise PermissionDenied
+    return auto_join_user
+
+
+class ProjectAutoJoinUsersView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    def get(self, request, object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        context = self.get_project_context(object_id, project)
+        context["auto_join_users"] = AutoJoinUser.objects.filter(project=project).order_by("email")
+        return render(request, "projects/project_auto_join_users.html", context)
+
+
+class CreateAutoJoinUserView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    def post(self, request, object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        email = (request.POST.get("email") or "").strip().lower()
+        error = None
+
+        if not email:
+            error = "Email is required"
+        else:
+            try:
+                validate_email(email)
+            except ValidationError:
+                error = f"'{email}' is not a valid email address"
+
+        if not error:
+            AutoJoinUser.objects.get_or_create(project=project, email=email)
+
+        context = self.get_project_context(object_id, project)
+        context["auto_join_users"] = AutoJoinUser.objects.filter(project=project).order_by("email")
+        context["error"] = error
+        return render(request, "projects/project_auto_join_users.html", context)
+
+
+class DeleteAutoJoinUserView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    def delete(self, request, object_id, auto_join_user_object_id):
+        auto_join_user = get_auto_join_user_for_user(user=request.user, auto_join_user_object_id=auto_join_user_object_id)
+        project = auto_join_user.project
+        email = auto_join_user.email
+
+        # Removing a user cascades to ALL their bots (scheduled + historical),
+        # not just future ones — matches org_poller.py's created_for_email metadata tag.
+        for bot in Bot.objects.filter(project=project, metadata__created_for_email=email):
+            bot.delete_completely()
+
+        auto_join_user.delete()
+
+        context = self.get_project_context(object_id, project)
+        context["auto_join_users"] = AutoJoinUser.objects.filter(project=project).order_by("email")
+        return render(request, "projects/project_auto_join_users.html", context)
 
 
 class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):

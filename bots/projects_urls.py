@@ -182,6 +182,21 @@ urlpatterns = [
         name="project-calendar-event-detail",
     ),
     path(
+        "<str:object_id>/users",
+        projects_views.ProjectAutoJoinUsersView.as_view(),
+        name="project-auto-join-users",
+    ),
+    path(
+        "<str:object_id>/users/create",
+        projects_views.CreateAutoJoinUserView.as_view(),
+        name="create-auto-join-user",
+    ),
+    path(
+        "<str:object_id>/users/<str:auto_join_user_object_id>/delete",
+        projects_views.DeleteAutoJoinUserView.as_view(),
+        name="delete-auto-join-user",
+    ),
+    path(
         "<str:object_id>/bot-logins/google-meet/logins/create/",
         projects_views.CreateGoogleMeetBotLoginView.as_view(),
         name="create-google-meet-bot-login",

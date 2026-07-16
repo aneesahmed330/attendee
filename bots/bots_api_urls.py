@@ -99,6 +99,11 @@ urlpatterns = [
         bots_api_views.ParticipantsView.as_view(),
         name="bot-participants",
     ),
+    path(
+        "auto_join_users",
+        bots_api_views.AutoJoinUsersListView.as_view(),
+        name="auto-join-users-list",
+    ),
 ]
 
 # catch any other paths and return a 404 json response - must be last
