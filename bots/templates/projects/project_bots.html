@@ -254,6 +254,7 @@
                         <th>Last Event</th>
                         {% if has_scheduled_bots %}<th>Join At</th>{% endif %}
                         <th>Created</th>
+                        {% if session_type == SessionTypes.BOT %}<th>Actions</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -318,6 +319,18 @@
                         </td>
                         {% endif %}
                         <td><small><span class="local-time" data-utc="{{ bot.created_at|date:"c" }}">{{ bot.created_at|date:"M d, Y H:i" }} UTC</span></small></td>
+                        {% if session_type == SessionTypes.BOT %}
+                        <td onclick="event.stopPropagation()">
+                            {% if bot.state == BotStates.SCHEDULED %}
+                            <button class="btn btn-sm btn-primary"
+                                    hx-post="{% url 'projects:join-bot-now' project.object_id bot.object_id %}"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                    hx-confirm="Send the bot to join this meeting now, ignoring its scheduled time? (Teams will only admit it if the meeting has actually started.)">
+                                <i class="bi bi-box-arrow-in-right"></i> Join Now
+                            </button>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

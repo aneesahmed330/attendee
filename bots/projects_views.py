@@ -916,6 +916,40 @@ class DeleteAutoJoinUserView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         return render(request, "projects/project_auto_join_users.html", context)
 
 
+class JoinBotNowView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    """Force a SCHEDULED bot to join its meeting immediately, ignoring its
+    scheduled join_at. Sets join_at to now (so the bot process joins right away
+    instead of waiting) and launches it via the same path the scheduler uses.
+
+    Note: Teams still won't admit the bot if the meeting itself hasn't started
+    yet — this makes the bot *attempt* to join now, it can't force a meeting to
+    exist early.
+    """
+
+    def post(self, request, object_id, bot_object_id):
+        from django.utils import timezone
+
+        from .tasks.launch_scheduled_bot_task import launch_scheduled_bot
+
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        if bot.state != BotStates.SCHEDULED:
+            return HttpResponse(
+                f"Bot is not scheduled (current state: {bot.get_state_display()}) — can only force-join a scheduled bot.",
+                status=409,
+            )
+
+        bot.join_at = timezone.now()
+        bot.save(update_fields=["join_at"])
+        launch_scheduled_bot.delay(bot.id, bot.join_at.isoformat())
+        logger.info("Force-join-now requested for bot %s (%s) by user %s", bot.object_id, bot.id, request.user.email)
+
+        response = HttpResponse(status=204)
+        response["HX-Refresh"] = "true"
+        return response
+
+
 class ProjectBotDetailView(LoginRequiredMixin, ProjectUrlContextMixin, View):
     def get(self, request, object_id, bot_object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)

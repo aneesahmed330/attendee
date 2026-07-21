@@ -32,6 +32,11 @@ urlpatterns = [
         name="create-bot",
     ),
     path(
+        "<str:object_id>/bots/<str:bot_object_id>/join-now",
+        projects_views.JoinBotNowView.as_view(),
+        name="join-bot-now",
+    ),
+    path(
         "<str:object_id>/bots/<str:bot_object_id>",
         projects_views.ProjectBotDetailView.as_view(),
         name="project-bot-detail",
