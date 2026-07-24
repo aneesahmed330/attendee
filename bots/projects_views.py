@@ -1,6 +1,8 @@
 import base64
 import json
 import logging
+
+import requests
 import os
 import uuid
 
@@ -927,6 +929,38 @@ class DeleteAutoJoinUserView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         context = self.get_project_context(object_id, project)
         context["auto_join_users"] = AutoJoinUser.objects.filter(project=project).order_by("email")
         return render(request, "projects/project_auto_join_users.html", context)
+
+
+class TestAutoJoinUserWebhookView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    """Post a sample MessageCard to a user's custom Teams webhook so an admin can
+    confirm it's valid before real MoMs depend on it. Returns a small HTML snippet
+    (HTMX swaps it in beside the button). No-op if no custom webhook is set."""
+
+    def post(self, request, object_id, auto_join_user_object_id):
+        auto_join_user = get_auto_join_user_for_user(user=request.user, auto_join_user_object_id=auto_join_user_object_id)
+        webhook_url = auto_join_user.teams_webhook_url
+
+        if not webhook_url:
+            return HttpResponse('<span class="text-danger small">No custom webhook set</span>')
+
+        payload = {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "summary": "Techverx Bots webhook test",
+            "themeColor": "0078D4",
+            "title": "✅ Techverx Bots — webhook test",
+            "text": f"This is a test message for **{auto_join_user.email}**. If you can see this, the webhook is working correctly.",
+        }
+
+        try:
+            response = requests.post(webhook_url, json=payload, timeout=10)
+        except requests.RequestException as exc:
+            logger.warning("Webhook test failed for %s: %s", auto_join_user.email, exc)
+            return HttpResponse('<span class="text-danger small">✗ Failed — could not reach webhook</span>')
+
+        if 200 <= response.status_code < 300:
+            return HttpResponse('<span class="text-success small">✓ Sent — check the channel</span>')
+        return HttpResponse(f'<span class="text-danger small">✗ Failed (HTTP {response.status_code})</span>')
 
 
 class JoinBotNowView(LoginRequiredMixin, ProjectUrlContextMixin, View):

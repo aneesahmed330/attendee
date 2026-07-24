@@ -114,6 +114,21 @@
                                 Delete
                             </button>
 
+                            {% if auto_join_user.teams_webhook_url %}
+                            <button class="btn btn-outline-secondary btn-sm"
+                                    hx-post="{% url 'projects:test-auto-join-user-webhook' project.object_id auto_join_user.object_id %}"
+                                    hx-target="#testResult{{ auto_join_user.object_id }}"
+                                    hx-swap="innerHTML"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                Test webhook
+                            </button>
+                            {% else %}
+                            <button class="btn btn-outline-secondary btn-sm" disabled title="Set a custom webhook first to test it">
+                                Test webhook
+                            </button>
+                            {% endif %}
+                            <span id="testResult{{ auto_join_user.object_id }}" class="ms-2"></span>
+
                             <!-- Delete Confirmation Modal -->
                             <div class="modal" id="deleteModal{{ auto_join_user.object_id }}" tabindex="-1">
                                 <div class="modal-dialog">

@@ -202,6 +202,11 @@ urlpatterns = [
         name="delete-auto-join-user",
     ),
     path(
+        "<str:object_id>/users/<str:auto_join_user_object_id>/test-webhook",
+        projects_views.TestAutoJoinUserWebhookView.as_view(),
+        name="test-auto-join-user-webhook",
+    ),
+    path(
         "<str:object_id>/bot-logins/google-meet/logins/create/",
         projects_views.CreateGoogleMeetBotLoginView.as_view(),
         name="create-google-meet-bot-login",
