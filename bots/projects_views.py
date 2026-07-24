@@ -9,7 +9,7 @@ from allauth.account.utils import send_email_confirmation
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.validators import validate_email
+from django.core.validators import URLValidator, validate_email
 from django.db import models, transaction
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
@@ -879,6 +879,7 @@ class CreateAutoJoinUserView(LoginRequiredMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
         email = (request.POST.get("email") or "").strip().lower()
+        teams_webhook_url = (request.POST.get("teams_webhook_url") or "").strip()
         error = None
 
         if not email:
@@ -889,8 +890,20 @@ class CreateAutoJoinUserView(LoginRequiredMixin, ProjectUrlContextMixin, View):
             except ValidationError:
                 error = f"'{email}' is not a valid email address"
 
+        if not error and teams_webhook_url:
+            try:
+                URLValidator(schemes=["https"])(teams_webhook_url)
+            except ValidationError:
+                error = "Teams webhook must be a valid https:// URL"
+
         if not error:
-            AutoJoinUser.objects.get_or_create(project=project, email=email)
+            # update_or_create so the same form handles both adding a user and
+            # editing an existing user's per-user Teams webhook.
+            AutoJoinUser.objects.update_or_create(
+                project=project,
+                email=email,
+                defaults={"teams_webhook_url": teams_webhook_url},
+            )
 
         context = self.get_project_context(object_id, project)
         context["auto_join_users"] = AutoJoinUser.objects.filter(project=project).order_by("email")

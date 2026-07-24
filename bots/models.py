@@ -590,6 +590,10 @@ class AutoJoinUser(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="auto_join_users")
     email = models.EmailField()
 
+    # Optional per-user override: if set, this user's meeting MoMs post to THIS
+    # Teams channel webhook instead of the default (env) channel webhook.
+    teams_webhook_url = models.URLField(max_length=1024, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

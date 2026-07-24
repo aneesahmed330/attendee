@@ -21,6 +21,11 @@
                             <input type="email" class="form-control" id="autoJoinUserEmail" name="email" required>
                             <div class="form-text">The bot will automatically join this person's Teams meetings.</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="autoJoinUserWebhook" class="form-label">Custom Teams channel webhook <span class="text-muted">(optional)</span></label>
+                            <input type="url" class="form-control" id="autoJoinUserWebhook" name="teams_webhook_url" placeholder="https://...">
+                            <div class="form-text">If set, this user's meeting notes (MoM) post to this webhook instead of the default channel. Leave blank to use the default.</div>
+                        </div>
                         <button type="submit" class="btn btn-primary" data-bs-dismiss="modal">Add User</button>
                     </form>
                 </div>
@@ -47,6 +52,7 @@
                 <thead>
                     <tr>
                         <th>Email</th>
+                        <th>Teams Webhook</th>
                         <th>Added</th>
                         <th>Actions</th>
                     </tr>
@@ -55,8 +61,53 @@
                     {% for auto_join_user in auto_join_users %}
                     <tr>
                         <td>{{ auto_join_user.email }}</td>
+                        <td>
+                            {% if auto_join_user.teams_webhook_url %}
+                            <span class="badge bg-success">Custom</span>
+                            <span class="text-muted small text-truncate d-inline-block align-middle" style="max-width: 300px;" title="{{ auto_join_user.teams_webhook_url }}">{{ auto_join_user.teams_webhook_url }}</span>
+                            {% else %}
+                            <span class="text-muted">Default</span>
+                            {% endif %}
+                        </td>
                         <td>{{ auto_join_user.created_at|date:"M d, Y H:i" }}</td>
                         <td>
+                            <button class="btn btn-outline-primary btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editModal{{ auto_join_user.object_id }}">
+                                Edit webhook
+                            </button>
+
+                            <!-- Edit Webhook Modal -->
+                            <div class="modal" id="editModal{{ auto_join_user.object_id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Edit Teams webhook</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <form hx-post="{% url 'projects:create-auto-join-user' project.object_id %}"
+                                                    hx-select="#autoJoinUsersTable"
+                                                    hx-target="#autoJoinUsersTable"
+                                                    hx-swap="outerHTML">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="email" value="{{ auto_join_user.email }}">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Email</label>
+                                                    <input type="email" class="form-control" value="{{ auto_join_user.email }}" disabled>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="editWebhook{{ auto_join_user.object_id }}" class="form-label">Custom Teams channel webhook</label>
+                                                    <input type="url" class="form-control" id="editWebhook{{ auto_join_user.object_id }}" name="teams_webhook_url" value="{{ auto_join_user.teams_webhook_url }}" placeholder="https://...">
+                                                    <div class="form-text">Leave blank to use the default channel webhook.</div>
+                                                </div>
+                                                <button type="submit" class="btn btn-primary" data-bs-dismiss="modal">Save</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <button class="btn btn-danger btn-sm"
                                     data-bs-toggle="modal"
                                     data-bs-target="#deleteModal{{ auto_join_user.object_id }}">

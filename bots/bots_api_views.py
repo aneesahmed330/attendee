@@ -1715,5 +1715,9 @@ class AutoJoinUsersListView(APIView):
         tags=["Bots"],
     )
     def get(self, request):
-        emails = list(AutoJoinUser.objects.filter(project=request.auth.project).order_by("email").values_list("email", flat=True))
-        return Response({"emails": emails})
+        users = list(AutoJoinUser.objects.filter(project=request.auth.project).order_by("email"))
+        emails = [u.email for u in users]
+        # Only users with a per-user override are included in `webhooks`; the
+        # orchestrator falls back to the default (env) webhook for the rest.
+        webhooks = {u.email: u.teams_webhook_url for u in users if u.teams_webhook_url}
+        return Response({"emails": emails, "webhooks": webhooks})
