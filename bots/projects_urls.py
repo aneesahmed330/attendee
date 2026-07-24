@@ -172,6 +172,11 @@ urlpatterns = [
         name="edit-user",
     ),
     path(
+        "<str:object_id>/team/users/<str:user_object_id>/resend-invite",
+        projects_views.ResendInviteView.as_view(),
+        name="resend-invite",
+    ),
+    path(
         "<str:object_id>/calendars",
         projects_views.ProjectCalendarsView.as_view(),
         name="project-calendars",

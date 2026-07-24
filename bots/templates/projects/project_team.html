@@ -84,6 +84,16 @@
                               data-bs-target="#editUserModal">
                         <i class="fas fa-edit"></i> Edit
                       </button>
+                      {% if user.is_active and not user.last_login %}
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              hx-post="{% url 'projects:resend-invite' project.object_id user.object_id %}"
+                              hx-target="#inviteResult{{ user.object_id }}"
+                              hx-swap="innerHTML"
+                              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                        Resend invite
+                      </button>
+                      <span id="inviteResult{{ user.object_id }}" class="ms-2"></span>
+                      {% endif %}
                     {% endif %}
                   </td>
                 </tr>

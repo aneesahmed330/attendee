@@ -1291,6 +1291,27 @@ class InviteUserView(AdminRequiredMixin, ProjectUrlContextMixin, View):
             return HttpResponse("An error occurred while sending the invitation", status=500)
 
 
+class ResendInviteView(AdminRequiredMixin, ProjectUrlContextMixin, View):
+    """Re-send the invitation/verification email to a pending user (one that was
+    invited but never logged in). Uses the admin's request so the link points at
+    the real public host. Returns a small HTML snippet for HTMX to swap in."""
+
+    def post(self, request, object_id, user_object_id):
+        get_project_for_user(user=request.user, project_object_id=object_id)
+        user_to_invite = get_object_or_404(User, object_id=user_object_id, organization=request.user.organization)
+
+        if user_to_invite.last_login:
+            return HttpResponse('<span class="text-muted small">Already active</span>')
+
+        try:
+            send_email_confirmation(request, user_to_invite, email=user_to_invite.email)
+        except Exception as exc:
+            logger.error("Failed to resend invite to %s: %s", user_to_invite.email, exc)
+            return HttpResponse('<span class="text-danger small">✗ Failed to send</span>')
+
+        return HttpResponse('<span class="text-success small">✓ Invite resent</span>')
+
+
 class CreateWebhookView(LoginRequiredMixin, ProjectUrlContextMixin, View):
     def post(self, request, object_id):
         project = get_project_for_user(user=request.user, project_object_id=object_id)
