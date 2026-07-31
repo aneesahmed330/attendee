@@ -7,6 +7,9 @@
                 <div class="recording-container">
                     
                     <div class="transcript-column">
+                        <button type="button" class="btn btn-outline-primary btn-sm mb-2" onclick="copyTranscript(this)">
+                            <i class="bi bi-clipboard"></i> Copy transcript
+                        </button>
                         {% if recording.transcriptions|length > 1 %}
                             <div class="transcription-selector-wrapper mb-3">
                                 <select class="form-select form-select-sm transcription-selector" style="max-width: 300px;" onchange="switchTranscription(this)">
@@ -93,6 +96,48 @@
             video.currentTime = timestamp_ms / 1000.0;
             video.play();
         }
+    }
+
+    // Copy the visible transcript (timestamp | name : message) for this recording.
+    function copyTranscript(btn) {
+        const container = btn.closest('.recording-container');
+        const visible = container.querySelector('.transcription-content:not([style*="display: none"])') || container;
+        const lines = [];
+        visible.querySelectorAll('.utterance-item').forEach(item => {
+            const tsEl = item.querySelector('.utterance-timestamp');
+            const txtEl = item.querySelector('.utterance-text');
+            const header = tsEl ? tsEl.textContent.replace(/\s+/g, ' ').trim() : '';
+            const message = txtEl ? txtEl.textContent.replace(/\s+/g, ' ').trim() : '';
+            if (header || message) {
+                lines.push(message ? header + ': ' + message : header);
+            }
+        });
+        const text = lines.join('\n');
+        if (!text) return;
+
+        const done = () => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check2"></i> Copied';
+            btn.disabled = true;
+            setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 1500);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+        } else {
+            fallbackCopy(text, done);
+        }
+    }
+
+    function fallbackCopy(text, done) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
     }
 
     // Speaker timeline initialization (position bars and wire up interactions once video duration is known)
