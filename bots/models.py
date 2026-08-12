@@ -930,6 +930,12 @@ class Bot(models.Model):
 
             BotEventManager.create_event(bot=self, event_type=BotEventTypes.DATA_DELETED)
 
+    @property
+    def can_be_cancelled(self):
+        """True while cancelling can still prevent a recording/MoM — i.e. the bot
+        hasn't finished yet. See CancelBotView."""
+        return self.state not in BotStates.post_meeting_states()
+
     def delete_completely(self):
         """Permanently removes this bot and all its data (unlike delete_data(),
         which scrubs PII but keeps the bot row for audit purposes).

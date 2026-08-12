@@ -23,13 +23,14 @@ from django.views.generic import ListView
 
 from accounts.models import User, UserRole
 
-from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription
+from .bots_api_utils import BotCreationSource, create_bot, create_webhook_subscription, send_sync_command
 from .launch_bot_utils import launch_adhoc_bot_from_view
 from .models import (
     ApiKey,
     AutoJoinUser,
     Bot,
     BotEvent,
+    BotEventManager,
     BotEventSubTypes,
     BotEventTypes,
     BotLogin,
@@ -991,6 +992,92 @@ class JoinBotNowView(LoginRequiredMixin, ProjectUrlContextMixin, View):
         bot.save(update_fields=["join_at"])
         launch_scheduled_bot.delay(bot.id, bot.join_at.isoformat())
         logger.info("Force-join-now requested for bot %s (%s) by user %s", bot.object_id, bot.id, request.user.email)
+
+        response = HttpResponse(status=204)
+        response["HX-Refresh"] = "true"
+        return response
+
+
+# States in which Attendee allows a LEAVE_REQUESTED event (i.e. the bot is in,
+# or on its way into, the meeting). Mirrors BotEventManager's transition table.
+_LEAVE_ALLOWED_STATES = (
+    BotStates.JOINING,
+    BotStates.WAITING_ROOM,
+    BotStates.JOINED_NOT_RECORDING,
+    BotStates.JOINED_RECORDING,
+    BotStates.JOINED_RECORDING_PAUSED,
+    BotStates.JOINED_RECORDING_PERMISSION_DENIED,
+    BotStates.JOINING_BREAKOUT_ROOM,
+    BotStates.LEAVING_BREAKOUT_ROOM,
+)
+
+
+class CancelBotView(LoginRequiredMixin, ProjectUrlContextMixin, View):
+    """Cancel a bot so it neither records nor produces a MoM.
+
+    Handles every non-terminal state: a scheduled bot simply never launches, and
+    a bot that is already in the meeting is told to leave first. Then all captured
+    media/transcript data is wiped and the bot is parked in DATA_DELETED.
+
+    Two deliberate design points:
+
+    1. The state is set directly rather than through BotEventManager, so no
+       `post_processing_completed` event is emitted — that event is the only thing
+       the orchestrator turns into a MoM, so skipping it is what stops the MoM.
+       (The wiped transcript is a second safety net: the pipeline skips bots with
+       an empty transcript.)
+    2. The bot ROW is kept instead of deleted. org_poller dedups against every
+       existing bot (any state) via metadata.calendar_event_id, so an existing row
+       is what stops the poller from recreating this bot on its next cycle —
+       deleting the row outright would bring the bot straight back.
+    """
+
+    def post(self, request, object_id, bot_object_id):
+        project = get_project_for_user(user=request.user, project_object_id=object_id)
+        bot = get_object_or_404(Bot, object_id=bot_object_id, project=project)
+
+        if not bot.can_be_cancelled:
+            return HttpResponse(
+                f"Bot is already finished (state: {bot.get_state_display()}) — nothing to cancel.",
+                status=409,
+            )
+
+        # Captured before the leave event below moves the bot to LEAVING.
+        state_when_cancelled = bot.get_state_display()
+
+        # Get the bot out of the meeting before wiping anything.
+        if bot.state in _LEAVE_ALLOWED_STATES:
+            try:
+                BotEventManager.create_event(
+                    bot,
+                    BotEventTypes.LEAVE_REQUESTED,
+                    event_sub_type=BotEventSubTypes.LEAVE_REQUESTED_USER_REQUESTED,
+                )
+                send_sync_command(bot)
+            except Exception as exc:
+                logger.warning("Could not request leave for bot %s while cancelling: %s", bot.object_id, exc)
+
+        with transaction.atomic():
+            for recording in bot.recordings.all():
+                recording.audio_chunks.all().delete()
+                recording.utterances.all().delete()
+                if recording.file and recording.file.name:
+                    recording.file.delete()
+            bot.chat_messages.all().delete()
+            bot.participants.all().delete()
+            # A bot cancelled during POST_PROCESSING may already have a queued
+            # post_processing_completed state-change webhook — the one thing that
+            # makes the orchestrator build a MoM. Dropping undelivered attempts
+            # kills it in flight (deliver_webhook fails on the missing row).
+            bot.webhook_delivery_attempts.filter(status=WebhookDeliveryAttemptStatus.PENDING).delete()
+            Bot.objects.filter(id=bot.id).update(state=BotStates.DATA_DELETED)
+
+        logger.info(
+            "Bot %s cancelled by %s (was %s) — data wiped, no MoM will be generated",
+            bot.object_id,
+            request.user.email,
+            state_when_cancelled,
+        )
 
         response = HttpResponse(status=204)
         response["HX-Refresh"] = "true"
