@@ -23,13 +23,15 @@ services:
       - DJANGO_SETTINGS_MODULE=attendee.settings.development
       - ENABLE_CHROME_SANDBOX=false
       - RUN_BOT_CELERY_QUEUE=bots
-    command: "celery -A attendee worker -l INFO -Q bots -n bots@%h --concurrency=2"
+    command: "celery -A attendee worker -l INFO -Q bots -n bots@%h --concurrency=${BOTS_CONCURRENCY:-2}"
     restart: unless-stopped
     logging: *default-logging
     # Memory caps: a leaking/hungry container gets OOM-killed and restarted
     # alone instead of freezing the whole box (see docs/issuses_solution.md).
-    # Bots worker is highest — each Chrome bot needs ~1-1.5 GB.
-    mem_limit: 2560m
+    # Bots worker is highest — each Chrome bot needs ~1-1.5 GB. Keep
+    # BOTS_CONCURRENCY and BOTS_MEM_LIMIT in lockstep — raising one without
+    # the other either wastes RAM or lets a bot get OOM-killed mid-meeting.
+    mem_limit: ${BOTS_MEM_LIMIT:-2560m}
 
   # Everything-else worker: webhooks, transcription processing, calendar sync.
   # Short tasks — higher concurrency, recycled every 200 tasks (the global
@@ -124,11 +126,12 @@ services:
        - postgres:/data/postgres
     networks:
       - attendee_network
-    # Bound to the instance's private IP (not 0.0.0.0) so Fargate bot tasks
-    # in the same VPC can reach it — security group sg-02b340717b24ac378
-    # only allows this port from the Fargate tasks' SG, nothing public.
+    # On AWS this was bound to the EC2 instance's private IP so Fargate bot
+    # tasks in the same VPC could reach it. On techverx-server bots run
+    # locally (LAUNCH_BOT_METHOD unset), so nothing outside this compose
+    # network needs Postgres — POSTGRES_BIND_IP defaults to loopback only.
     ports:
-      - "172.31.44.122:5432:5432"
+      - "${POSTGRES_BIND_IP:-127.0.0.1}:5432:5432"
     restart: unless-stopped
     logging: *default-logging
     mem_limit: 512m
@@ -143,10 +146,9 @@ services:
     image: redis:7-alpine
     networks:
       - attendee_network
-    # Same reasoning as postgres above — bound to the private IP, locked
-    # down to the Fargate tasks' SG only.
+    # Same reasoning as postgres above — loopback only on techverx-server.
     ports:
-      - "172.31.44.122:6379:6379"
+      - "${REDIS_BIND_IP:-127.0.0.1}:6379:6379"
     restart: unless-stopped
     logging: *default-logging
     volumes:
