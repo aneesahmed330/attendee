@@ -612,7 +612,7 @@ class WebBotAdapter(BotAdapter):
         # Temporary diagnostic logging (techverx-server WebRTC join investigation).
         # Remove once ICE/media-connection root cause is confirmed.
         options.add_argument("--enable-logging=stderr")
-        options.add_argument("--vmodule=*/webrtc/*=2,*/media/*=2")
+        options.add_argument("--v=1")
 
         if os.getenv("ENABLE_CHROME_SANDBOX", "false").lower() != "true":
             options.add_argument("--no-sandbox")
