@@ -609,10 +609,6 @@ class WebBotAdapter(BotAdapter):
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        # Temporary diagnostic logging (techverx-server WebRTC join investigation).
-        # Remove once ICE/media-connection root cause is confirmed.
-        options.add_argument("--enable-logging=stderr")
-        options.add_argument("--v=1")
 
         if os.getenv("ENABLE_CHROME_SANDBOX", "false").lower() != "true":
             options.add_argument("--no-sandbox")

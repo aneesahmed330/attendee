@@ -234,8 +234,16 @@ class Command(BaseCommand):
         can run safely (e.g. during rolling deploys).
         """
 
-        # Give the bots 5 minutes to spin up, before they join the meeting.
-        join_at_upper_threshold = timezone.now() + timezone.timedelta(minutes=5)
+        # techverx-server runs a persistent, always-warm attendee-worker-local
+        # celery worker (not a per-bot container that needs time to spin up),
+        # so bots don't need a multi-minute head start before join_at. Sitting
+        # idle in STAGED for minutes was found to leave the bot's WebRTC/media
+        # pipeline stale by the time it actually joins: the Chrome UI flow
+        # (name/mic/camera/Join now) still succeeds, but no audio/video track
+        # or "UsersUpdate" ever arrives, and the meeting times out as if no
+        # participant joined. A short, fixed buffer avoids that without
+        # removing the buffer entirely.
+        join_at_upper_threshold = timezone.now() + timezone.timedelta(seconds=30)
         # If we miss a scheduled bot by more than 5 minutes, don't bother launching it, it's a failure and it'll be cleaned up
         # by the clean_up_bots_with_heartbeat_timeout_or_that_never_launched command
         join_at_lower_threshold = timezone.now() - timezone.timedelta(minutes=5)
