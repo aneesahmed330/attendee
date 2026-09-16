@@ -234,16 +234,8 @@ class Command(BaseCommand):
         can run safely (e.g. during rolling deploys).
         """
 
-        # techverx-server runs a persistent, always-warm attendee-worker-local
-        # celery worker (not a per-bot container that needs time to spin up),
-        # so bots don't need a multi-minute head start before join_at. Sitting
-        # idle in STAGED for minutes was found to leave the bot's WebRTC/media
-        # pipeline stale by the time it actually joins: the Chrome UI flow
-        # (name/mic/camera/Join now) still succeeds, but no audio/video track
-        # or "UsersUpdate" ever arrives, and the meeting times out as if no
-        # participant joined. A short, fixed buffer avoids that without
-        # removing the buffer entirely.
-        join_at_upper_threshold = timezone.now() + timezone.timedelta(seconds=30)
+        # Give the bots 5 minutes to spin up, before they join the meeting.
+        join_at_upper_threshold = timezone.now() + timezone.timedelta(minutes=5)
         # If we miss a scheduled bot by more than 5 minutes, don't bother launching it, it's a failure and it'll be cleaned up
         # by the clean_up_bots_with_heartbeat_timeout_or_that_never_launched command
         join_at_lower_threshold = timezone.now() - timezone.timedelta(minutes=5)
@@ -251,18 +243,9 @@ class Command(BaseCommand):
         with transaction.atomic():
             bots_to_launch = Bot.objects.filter(state=BotStates.SCHEDULED, join_at__lte=join_at_upper_threshold, join_at__gte=join_at_lower_threshold).select_for_update(skip_locked=True)
 
-            # Multiple real meetings routinely start at the same minute (recurring
-            # standups, back-to-back invites). Launching them all in the same instant
-            # was found to make every one of them silently fail to establish WebRTC
-            # media (Chrome completes the join UI, but no audio/video track or
-            # "UsersUpdate" ever arrives) — a resource conflict between simultaneous
-            # Chrome/PulseAudio instances in the same worker container. Staggering
-            # each bot's actual launch by a few seconds avoids that; single bots are
-            # unaffected since there's nothing to stagger against.
-            for i, bot in enumerate(bots_to_launch):
-                countdown_seconds = i * 5
-                log.info(f"Launching scheduled bot {bot.id} ({bot.object_id}) with join_at {bot.join_at.isoformat()} (countdown={countdown_seconds}s)")
-                launch_scheduled_bot.apply_async(args=(bot.id, bot.join_at.isoformat()), countdown=countdown_seconds)
+            for bot in bots_to_launch:
+                log.info(f"Launching scheduled bot {bot.id} ({bot.object_id}) with join_at {bot.join_at.isoformat()}")
+                launch_scheduled_bot.delay(bot.id, bot.join_at.isoformat())
 
             log.info("Launched %s bots", len(bots_to_launch))
 
