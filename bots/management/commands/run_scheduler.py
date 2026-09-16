@@ -251,9 +251,18 @@ class Command(BaseCommand):
         with transaction.atomic():
             bots_to_launch = Bot.objects.filter(state=BotStates.SCHEDULED, join_at__lte=join_at_upper_threshold, join_at__gte=join_at_lower_threshold).select_for_update(skip_locked=True)
 
-            for bot in bots_to_launch:
-                log.info(f"Launching scheduled bot {bot.id} ({bot.object_id}) with join_at {bot.join_at.isoformat()}")
-                launch_scheduled_bot.delay(bot.id, bot.join_at.isoformat())
+            # Multiple real meetings routinely start at the same minute (recurring
+            # standups, back-to-back invites). Launching them all in the same instant
+            # was found to make every one of them silently fail to establish WebRTC
+            # media (Chrome completes the join UI, but no audio/video track or
+            # "UsersUpdate" ever arrives) — a resource conflict between simultaneous
+            # Chrome/PulseAudio instances in the same worker container. Staggering
+            # each bot's actual launch by a few seconds avoids that; single bots are
+            # unaffected since there's nothing to stagger against.
+            for i, bot in enumerate(bots_to_launch):
+                countdown_seconds = i * 5
+                log.info(f"Launching scheduled bot {bot.id} ({bot.object_id}) with join_at {bot.join_at.isoformat()} (countdown={countdown_seconds}s)")
+                launch_scheduled_bot.apply_async(args=(bot.id, bot.join_at.isoformat()), countdown=countdown_seconds)
 
             log.info("Launched %s bots", len(bots_to_launch))
 
