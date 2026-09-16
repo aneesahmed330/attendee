@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import subprocess
 import threading
 import time
 from time import sleep
@@ -608,6 +609,10 @@ class WebBotAdapter(BotAdapter):
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        # Temporary diagnostic logging (techverx-server WebRTC join investigation).
+        # Remove once ICE/media-connection root cause is confirmed.
+        options.add_argument("--enable-logging=stderr")
+        options.add_argument("--vmodule=*/webrtc/*=2,*/media/*=2")
 
         if os.getenv("ENABLE_CHROME_SANDBOX", "false").lower() != "true":
             options.add_argument("--no-sandbox")
@@ -637,7 +642,7 @@ class WebBotAdapter(BotAdapter):
                 logger.warning(f"Error closing existing driver: {e}")
             self.driver = None
 
-        self.driver = webdriver.Chrome(options=options, service=Service(executable_path="/usr/local/bin/chromedriver"))
+        self.driver = webdriver.Chrome(options=options, service=Service(executable_path="/usr/local/bin/chromedriver", log_output=subprocess.STDOUT))
         logger.info(f"web driver server initialized at port {self.driver.service.port}")
 
         initial_data_code = f"window.initialData = {{websocketPort: {self.websocket_port}, videoFrameWidth: {self.video_frame_size[0]}, videoFrameHeight: {self.video_frame_size[1]}, botName: {json.dumps(self.display_name)}, addClickRipple: {'true' if self.should_create_debug_recording else 'false'}, recordingView: '{self.recording_view}', sendMixedAudio: {'true' if self.add_mixed_audio_chunk_callback else 'false'}, sendPerParticipantAudio: {'true' if self.add_audio_chunk_callback else 'false'}, perParticipantRealtimeVideoConfiguration: {json.dumps(self.per_participant_realtime_video_configuration.to_dict())}, sendPerParticipantVideo: {'true' if self.add_per_participant_video_frame_callback else 'false'}, collectCaptions: {'true' if self.upsert_caption_callback else 'false'}, recordParticipantSpeechStartStopEvents: {'true' if self.record_participant_speech_start_stop_events else 'false'}}}"
